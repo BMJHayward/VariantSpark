@@ -46,7 +46,7 @@ case object ToOneImportanceNormalizer extends StandardImportanceNormalizer(1.0)
   * @param nLabels the number of labels
   * @param nSamples the number of samples
   */
-case class VotingAggregator(val nLabels:Int, val nSamples:Int) {
+case class VotingAggregator(nLabels:Int, nSamples:Int) {
   lazy val votes = Array.fill(nSamples)(Array.fill(nLabels)(0))
 
   /** Adds a vote with predictions and indexes
@@ -70,7 +70,7 @@ case class VotingAggregator(val nLabels:Int, val nSamples:Int) {
   /** Maps votes to predictions
     *
     */
-  def predictions = votes.map(_.zipWithIndex.maxBy(_._1)._2)
+  def predictions: Array[Int] = votes.map(_.zipWithIndex.maxBy(_._1)._2)
 }
 
 /** Implements random forest members conditionally
@@ -78,8 +78,8 @@ case class VotingAggregator(val nLabels:Int, val nSamples:Int) {
   * @param oobIndexes an array of out-of-bag index values
   */
 @SerialVersionUID(2l)
-case class RandomForestMember(val predictor:PredictiveModelWithImportance,
-                                 val oobIndexes:Array[Int] = null, val oobPred:Array[Int] = null) {
+case class RandomForestMember(predictor:PredictiveModelWithImportance,
+                              oobIndexes:Array[Int] = null, oobPred:Array[Int] = null) {
 }
 
 /** Implements random forest models conditionally
@@ -88,18 +88,18 @@ case class RandomForestMember(val predictor:PredictiveModelWithImportance,
   * @param oobErrors the out-of-bag errors
   */
 @SerialVersionUID(2l)
-case class RandomForestModel(val members: List[RandomForestMember], val labelCount:Int, val oobErrors:
-  List[Double] = List.empty, val params:RandomForestParams = null) {
+case class RandomForestModel(members: List[RandomForestMember], labelCount:Int, oobErrors:
+  List[Double] = List.empty, params:RandomForestParams = null) {
 
-  def size = members.size
-  def trees = members.map(_.predictor)
+  def size: Int = members.size
+  def trees: List[PredictiveModelWithImportance] = members.map(_.predictor)
 
   def oobError:Double = oobErrors.last
 
   def printout() {
     trees.zipWithIndex.foreach {
       case (tree, index) =>
-        println(s"Tree: ${index}")
+        println(s"Tree: $index")
         tree.printout()
     }
   }
@@ -171,7 +171,7 @@ case class RandomForestParams(
         airRandomSeed = airRandomSeed
     )
   }
-  override def toString = ToStringBuilder.reflectionToString(this)
+  override def toString: String = ToStringBuilder.reflectionToString(this)
 }
 
 object RandomForestParams {
@@ -181,6 +181,7 @@ object RandomForestParams {
       mTryFraction:Option[Double] =  None,
       bootstrap:Option[Boolean] = None,
       subsample:Option[Double] = None,
+      randomizeEquality:Option[Boolean] = None,
       seed:Option[Long] =  None,
       maxDepth:Option[Int] = None,
       minNodeSize:Option[Int] = None,
@@ -191,7 +192,7 @@ object RandomForestParams {
           mTryFraction.getOrElse(Double.NaN),
           bootstrap.getOrElse(true),
           subsample.getOrElse(Double.NaN),
-          true,
+          randomizeEquality.getOrElse(true),
           seed.getOrElse(defRng.nextLong),
           maxDepth.getOrElse(Int.MaxValue),
           minNodeSize.getOrElse(1),
@@ -220,9 +221,9 @@ object RandomForest {
     val decisionTree = new DecisionTree(params)
     new BatchTreeModel() {
       override def batchTrain(indexedData: RDD[TreeFeature], labels: Array[Int], nTryFraction:
-        Double, samples:Seq[Sample]) = decisionTree.batchTrainInt(indexedData, labels, nTryFraction, samples)
+        Double, samples:Seq[Sample]): Seq[PredictiveModelWithImportance] = decisionTree.batchTrainInt(indexedData, labels, nTryFraction, samples)
       override def batchPredict(indexedData: RDD[TreeFeature], models: Seq[PredictiveModelWithImportance], indexes:
-        Seq[Array[Int]]) = DecisionTreeModel.batchPredict(indexedData.map(tf => (tf,tf.index)),
+        Seq[Array[Int]]): Seq[Array[Int]] = DecisionTreeModel.batchPredict(indexedData.map(tf => (tf,tf.index)),
               models.asInstanceOf[Seq[DecisionTreeModel]], indexes)
     }
   }
@@ -234,11 +235,12 @@ object RandomForest {
   * @param params the RF params
   * @param modelBuilderFactory the type of model, i.e. 'wide decision tree builder'
   */
-class RandomForest(params:RandomForestParams=RandomForestParams()
-      ,modelBuilderFactory:RandomForest.ModelBuilderFactory = RandomForest.wideDecisionTreeBuilder _, trf:TreeRepresentationFactory = DefTreeRepresentationFactory) extends Logging {
+class RandomForest(params:RandomForestParams=RandomForestParams(),
+                  modelBuilderFactory:RandomForest.ModelBuilderFactory = RandomForest.wideDecisionTreeBuilder,
+                  trf:TreeRepresentationFactory = DefTreeRepresentationFactory) extends Logging {
 
   // TODO (Design):make this class keep random state (could be externalised to implicit random)
-  implicit lazy val rng = new XorShift1024StarRandomGenerator(params.seed)
+  implicit lazy val rng: XorShift1024StarRandomGenerator = new XorShift1024StarRandomGenerator(params.seed)
   def batchTrain(indexedData: RDD[(Feature, Long)],  labels: Array[Int], nTrees: Int, nBatchSize:Int = RandomForest.defaultBatchSize): RandomForestModel = {
     val treeFeatures:RDD[TreeFeature] = trf.createRepresentation(indexedData)
     batchTrainTyped(treeFeatures, labels, nTrees, nBatchSize)
@@ -255,15 +257,15 @@ class RandomForest(params:RandomForestParams=RandomForestParams()
     val nVariables = treeFeatures.count().toInt
     val nLabels = labels.max + 1
 
-    logDebug(s"Data:  nSamples:${nSamples}, nVariables: ${nVariables}, nLabels:${nLabels}")
+    logDebug(s"Data:  nSamples:$nSamples, nVariables: $nVariables, nLabels:$nLabels")
 
     val actualParams = params.resolveDefaults(nSamples, nVariables)
 
     Option(callback).foreach(_.onParamsResolved(actualParams))
-    logDebug(s"Parameters: ${actualParams}")
-    logDebug(s"Batch Training: ${nTrees} with batch size: ${nBatchSize}")
+    logDebug(s"Parameters: $actualParams")
+    logDebug(s"Batch Training: $nTrees with batch size: $nBatchSize")
 
-    val oobAggregator = if (actualParams.oob) Option(new VotingAggregator(nLabels,nSamples)) else None
+    val oobAggregator = if (actualParams.oob) Option(VotingAggregator(nLabels, nSamples)) else None
 
     val builder = modelBuilderFactory(actualParams.toDecisionTreeParams(rng.nextLong))
     val allSamples = Stream.fill(nTrees)(Sample.fraction(nSamples, actualParams.subsample, actualParams.bootstrap))
@@ -291,12 +293,12 @@ class RandomForest(params:RandomForestParams=RandomForestParams()
           }.getOrElse(List.fill(predictors.size)(Double.NaN))
           members.zip(oobError)
         }.withResultAndTime{ case (treesAndErrors, elapsedTime) =>
-          logDebug(s"Trees: ${treesAndErrors.size} >> oobError: ${treesAndErrors.last._2}, time: ${elapsedTime}")
+          logDebug(s"Trees: ${treesAndErrors.size} >> oobError: ${treesAndErrors.last._2}, time: $elapsedTime")
           Option(callback).foreach(_.onTreeComplete(treesAndErrors.size, treesAndErrors.last._2, elapsedTime))
         }.result
      }.toList.unzip
 
-    RandomForestModel(allTrees.toList, nLabels, errors, actualParams)
+    RandomForestModel(allTrees, nLabels, errors, actualParams)
  }
 
 
