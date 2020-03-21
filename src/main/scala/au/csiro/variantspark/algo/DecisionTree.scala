@@ -249,7 +249,8 @@ case class StdVariableSplitter(val labels:Array[Int], mTryFraction:Double=1.0, v
     splits.map { subsetInfo =>
       if (rng.nextDouble() <= mTryFraction) {
         val splitInfo = splitter.findSplit(subsetInfo.indices)
-        if (splitInfo != null && splitInfo.gini < subsetInfo.impurity) splitInfo else null
+        if (splitInfo != null && splitInfo.gini < subsetInfo.impurity)
+          splitInfo else null
       } else null
     }
   }

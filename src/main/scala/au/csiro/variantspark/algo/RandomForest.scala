@@ -39,7 +39,7 @@ class StandardImportanceNormalizer(val scale:Double) extends VarImportanceNormal
 
 /** Defines two different scaling values conditionally - 100% and 1%
   */
-case object To100ImportanceNormalizer extends StandardImportanceNormalizer(100.0) 
+case object To100ImportanceNormalizer extends StandardImportanceNormalizer(100.0)
 case object ToOneImportanceNormalizer extends StandardImportanceNormalizer(1.0)
 
 /** Implements voting aggregator conditionally
@@ -117,7 +117,7 @@ case class RandomForestModel(val members: List[RandomForestMember], val labelCou
   }
 
   def predict(indexedData: RDD[(Feature, Long)]): Array[Int] = predict(indexedData, indexedData.size)
-  
+
   def predict(indexedData: RDD[(Feature, Long)], nSamples:Int): Array[Int] = {
      trees.map(_.predict(indexedData))
        .foldLeft(VotingAggregator(labelCount, nSamples))(_.addVote(_)).predictions
@@ -135,37 +135,39 @@ case class RandomForestModel(val members: List[RandomForestMember], val labelCou
   */
 case class RandomForestParams(
     oob:Boolean = true,
-    nTryFraction:Double =  Double.NaN,
+    mTry:Double = Double.NaN,
+    nTryFraction:Double = Double.NaN,
     bootstrap:Boolean = true,
     subsample:Double = Double.NaN,
     randomizeEquality:Boolean = true,
     seed:Long =  defRng.nextLong,
     maxDepth:Int = Int.MaxValue,
-    minNodeSize:Int = 1, 
-    correctImpurity:Boolean = false, 
+    minNodeSize:Int = 1,
+    correctImpurity:Boolean = false,
     airRandomSeed:Long = 0L
 ) {
   def resolveDefaults(nSamples:Int, nVariables:Int):RandomForestParams = {
     RandomForestParams(
         oob = oob,
+        mTry = if (!mTry.isNaN) mTry else Math.sqrt(nVariables.toDouble)/nVariables,
         nTryFraction = if (!nTryFraction.isNaN) nTryFraction else Math.sqrt(nVariables.toDouble)/nVariables,
         bootstrap = bootstrap,
         subsample = if (!subsample.isNaN) subsample else if (bootstrap) 1.0 else 0.666,
         randomizeEquality  = randomizeEquality,
         seed = seed,
         maxDepth = maxDepth,
-        minNodeSize = minNodeSize, 
-        correctImpurity = correctImpurity, 
+        minNodeSize = minNodeSize,
+        correctImpurity = correctImpurity,
         airRandomSeed = airRandomSeed
     )
   }
-  def toDecisionTreeParams(seed:Long): DecisionTreeParams = { 
+  def toDecisionTreeParams(seed:Long): DecisionTreeParams = {
     DecisionTreeParams(
-        seed = seed, 
-        randomizeEquality = randomizeEquality, 
-        maxDepth = maxDepth, 
-        minNodeSize = minNodeSize, 
-        correctImpurity = correctImpurity, 
+        seed = seed,
+        randomizeEquality = randomizeEquality,
+        maxDepth = maxDepth,
+        minNodeSize = minNodeSize,
+        correctImpurity = correctImpurity,
         airRandomSeed = airRandomSeed
     )
   }
@@ -175,17 +177,26 @@ case class RandomForestParams(
 object RandomForestParams {
   def fromOptions(
       oob:Option[Boolean] = None,
+      mTry:Option[Double] =  None,
       mTryFraction:Option[Double] =  None,
       bootstrap:Option[Boolean] = None,
       subsample:Option[Double] = None,
       seed:Option[Long] =  None,
       maxDepth:Option[Int] = None,
-      minNodeSize:Option[Int] = None, 
+      minNodeSize:Option[Int] = None,
       correctImpurity:Option[Boolean] = None,
       airRandomSeed:Option[Long] = None
-    ):RandomForestParams = RandomForestParams(oob.getOrElse(true), mTryFraction.getOrElse( Double.NaN), bootstrap.getOrElse(true), 
-          subsample.getOrElse(Double.NaN), true, seed.getOrElse(defRng.nextLong), maxDepth.getOrElse(Int.MaxValue), minNodeSize.getOrElse(1),
-          correctImpurity.getOrElse(false), airRandomSeed.getOrElse(0L))
+    ):RandomForestParams = RandomForestParams(oob.getOrElse(true),
+          mTry.getOrElse(Double.NaN),
+          mTryFraction.getOrElse(Double.NaN),
+          bootstrap.getOrElse(true),
+          subsample.getOrElse(Double.NaN),
+          true,
+          seed.getOrElse(defRng.nextLong),
+          maxDepth.getOrElse(Int.MaxValue),
+          minNodeSize.getOrElse(1),
+          correctImpurity.getOrElse(false),
+          airRandomSeed.getOrElse(0L))
 }
 
 
@@ -232,14 +243,14 @@ class RandomForest(params:RandomForestParams=RandomForestParams()
     val treeFeatures:RDD[TreeFeature] = trf.createRepresentation(indexedData)
     batchTrainTyped(treeFeatures, labels, nTrees, nBatchSize)
   }
-                    
+
   // TODO (Design): Make a param rather then an extra method
   // TODO (Func): Add OOB Calculation
   def batchTrainTyped(treeFeatures: RDD[TreeFeature], labels: Array[Int], nTrees: Int, nBatchSize:Int)
                 (implicit callback:RandomForestCallback = null): RandomForestModel = {
 
     require(nBatchSize > 0)
-    require(nTrees > 0)   
+    require(nTrees > 0)
     val nSamples = labels.length
     val nVariables = treeFeatures.count().toInt
     val nLabels = labels.max + 1
@@ -287,6 +298,6 @@ class RandomForest(params:RandomForestParams=RandomForestParams()
 
     RandomForestModel(allTrees.toList, nLabels, errors, actualParams)
  }
-  
-  
+
+
 }
