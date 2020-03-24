@@ -126,6 +126,7 @@ case class RandomForestModel(members: List[RandomForestMember], labelCount:Int, 
 
 /** Implements random forest params conditionally
   * @param oob the out-of-bag value
+  * @param mTry number of variables to use
   * @param nTryFraction the n-try fraction value
   * @param bootstrap the bootstrap value
   * @param subsample the subsample value
@@ -150,7 +151,7 @@ case class RandomForestParams(
     RandomForestParams(
         oob = oob,
         mTry = if (!mTry.isNaN) mTry else Math.sqrt(nVariables.toDouble)/nVariables,
-        nTryFraction = if (!nTryFraction.isNaN) nTryFraction else Math.sqrt(nVariables.toDouble)/nVariables,
+        nTryFraction = if (!nTryFraction.isNaN) nTryFraction else 0.1,
         bootstrap = bootstrap,
         subsample = if (!subsample.isNaN) subsample else if (bootstrap) 1.0 else 0.666,
         randomizeEquality  = randomizeEquality,
