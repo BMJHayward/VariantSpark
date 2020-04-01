@@ -16,3 +16,4 @@ trait PredictiveModelWithImportance extends PredictiveModel {
   def variableImportanceAsFastMap: Long2DoubleOpenHashMap 
   def variableImportance(): Map[Long, Double] =  variableImportanceAsFastMap.asScala
 }
+

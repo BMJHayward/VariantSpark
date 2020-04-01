@@ -6,7 +6,6 @@ import varspark as vs
 import hail as hl
 
 def init(**kwargs):
-
     jars = []
     vs_jar_path=vs.find_jar()
     assert os.path.exists(vs_jar_path), "%s does not exist" % vs_jar_path

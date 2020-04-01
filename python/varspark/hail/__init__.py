@@ -10,6 +10,6 @@ from __future__ import (
     print_function)
 
 from .context import init
-from . methods import *
+from .methods import *
 
 __all__ = ['init', 'random_forest_model']

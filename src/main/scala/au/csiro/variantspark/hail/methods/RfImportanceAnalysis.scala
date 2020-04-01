@@ -25,6 +25,7 @@ import is.hail.expr.types.virtual.TFloat64
 import is.hail.expr.ir.TableIR
 import is.hail.expr.ir.TableLiteral
 import au.csiro.variantspark.algo.TreeFeature
+import au.csiro.variantspark.algo.PredictiveModel
 import org.apache.spark.rdd.RDD
 import is.hail.expr.types.virtual.TString
 import scala.collection.mutable.WrappedArray
@@ -43,7 +44,7 @@ import org.apache.spark.broadcast.Broadcast
  * 					while the dependent variable is named `y`
  * @rfParams random forest parameters to use
  */
-case class RFModel(mv:MatrixValue, rfParams: RandomForestParams) { 
+case class RFModel(mv:MatrixValue, rfParams: RandomForestParams) extends PredictiveModel { 
   
   val responseVarName = "y"
   val entryVarname = "e"
@@ -65,7 +66,7 @@ case class RFModel(mv:MatrixValue, rfParams: RandomForestParams) {
   // the result should keep the key + add importance related field
   lazy val sig = keySignature.insertFields(Array(("importance", TFloat64())))
  
-  lazy val rf = new  RandomForest(rfParams)
+  lazy val rf = new RandomForest(rfParams)
   val featuresRDD = mv.rvd.toRows.map(RFModel.rowToFeature)   
   lazy val inputData:RDD[TreeFeature] = DefTreeRepresentationFactory.createRepresentation(featuresRDD.zipWithIndex())
 
@@ -112,6 +113,17 @@ case class RFModel(mv:MatrixValue, rfParams: RandomForestParams) {
       it.map(tf => RFModel.tfFeatureToImpRow(tf.label, varImp.getOrElse(tf.index, 0.0)))
     }
     TableLiteral(TableValue(sig, key, mapRDD))
+  }
+
+  def predict(input: RDD[(Feature, Long)]): Array[Int] = {
+    val x = Array[Int](10)
+    for (elem <- input.take(10))
+      x :+ elem._2
+    x
+  }
+
+  def printout() {
+    println("printout method")
   }
   
   def release() {

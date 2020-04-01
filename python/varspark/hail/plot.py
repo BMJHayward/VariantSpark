@@ -7,9 +7,10 @@ import numpy as np
 import pandas as pd
 import bokeh
 import bokeh.io
-from bokeh.models import HoverTool, ColorBar, LogTicker, LogColorMapper, LinearColorMapper, CategoricalColorMapper, \
-    ColumnDataSource, BasicTicker, Plot, ColorMapper, CDSView, GroupFilter, Legend, LegendItem, Renderer, CustomJS, \
-    Select, Column, Span, DataRange1d, Slope
+from bokeh.models import (HoverTool, ColorBar, LogTicker, LogColorMapper,
+        LinearColorMapper, CategoricalColorMapper, ColumnDataSource, BasicTicker,
+        Plot, ColorMapper, CDSView, GroupFilter, Legend, LegendItem, Renderer,
+        CustomJS, Select, Column, Span, DataRange1d, Slope)
 from bokeh.plotting import figure
 from bokeh.transform import transform
 from bokeh.layouts import gridplot
