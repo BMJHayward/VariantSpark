@@ -14,6 +14,7 @@ class VariantSparkApp extends MultiCmdApp {
   registerClass("gen-labels-with-noise", classOf[GenerateLabelsNoiseCmd])
   registerClass("convert", classOf[ConvertCmd])
   registerClass("analyze-rf", classOf[AnalyzeRFCmd])
+  registerClass("predict", classOf[PredictCmd])
   registerClass("build-index", classOf[BuildVarIndexCmd])
   registerClass("pdist", classOf[PairWiseDistanceCmd])
 }
