@@ -62,7 +62,8 @@ case class VotingAggregator(nLabels: Int, nSamples: Int) {
     * @param predictions the number of predictions
     */
   def addVote(predictions: Array[Int]): VotingAggregator = {
-    require(predictions.length == nSamples, "Full prediction range")
+    require(predictions.length == nSamples,
+      s"Full prediction range: predictions.length is not equal to nSamples:\n${predictions.length}, ${nSamples}")
     predictions.zipWithIndex.foreach { case (v, i) => votes(i)(v) += 1 }
     this
   }
