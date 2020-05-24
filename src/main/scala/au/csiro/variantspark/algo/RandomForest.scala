@@ -3,7 +3,7 @@ package au.csiro.variantspark.algo
 import au.csiro.pbdava.ssparkle.common.utils.FastUtilConversions._
 import au.csiro.pbdava.ssparkle.common.utils.Logging
 import au.csiro.pbdava.ssparkle.common.utils.Timed._
-import au.csiro.variantspark.data.VariableType
+import au.csiro.variantspark.data.Feature
 import au.csiro.variantspark.metrics.Metrics
 import au.csiro.variantspark.utils.IndexedRDDFunction._
 import au.csiro.variantspark.utils.{Sample, defRng}
@@ -11,10 +11,6 @@ import it.unimi.dsi.fastutil.longs.Long2DoubleOpenHashMap
 import it.unimi.dsi.util.XorShift1024StarRandomGenerator
 import org.apache.commons.lang3.builder.ToStringBuilder
 import org.apache.spark.rdd.RDD
-
-import scala.reflect.ClassTag
-import au.csiro.variantspark.data.Feature
-import au.csiro.variantspark.data.FeatureBuilder
 
 /** Allows for normalization(scaling)of the input map values
   */
@@ -63,7 +59,8 @@ case class VotingAggregator(nLabels: Int, nSamples: Int) {
     */
   def addVote(predictions: Array[Int]): VotingAggregator = {
     require(predictions.length == nSamples,
-      s"Full prediction range: predictions.length is not equal to nSamples:\n${predictions.length}, ${nSamples}")
+      s"""Full prediction range: predictions.length is not equal to nSamples:
+          |\n${predictions.length}, ${nSamples}""")
     predictions.zipWithIndex.foreach { case (v, i) => votes(i)(v) += 1 }
     this
   }
@@ -91,9 +88,6 @@ case class RandomForestMember(predictor: PredictiveModelWithImportance,
 case class RandomForestModel(members: List[RandomForestMember], labelCount: Int,
     oobErrors: List[Double] = List.empty, params: RandomForestParams = null) {
 
-  def size: Int = members.size
-  def trees: List[PredictiveModelWithImportance] = members.map(_.predictor)
-
   def oobError: Double = oobErrors.last
 
   def printout() {
@@ -103,6 +97,8 @@ case class RandomForestModel(members: List[RandomForestMember], labelCount: Int,
         tree.printout()
     }
   }
+
+  def trees: List[PredictiveModelWithImportance] = members.map(_.predictor)
 
   def normalizedVariableImportance(
       norm: VarImportanceNormalizer = To100ImportanceNormalizer): Map[Long, Double] =
@@ -119,6 +115,8 @@ case class RandomForestModel(members: List[RandomForestMember], labelCount: Int,
       .asScala
       .mapValues(_ / size)
   }
+
+  def size: Int = members.size
 
   def predict(indexedData: RDD[(Feature, Long)]): Array[Int] =
     predict(indexedData, indexedData.size)
@@ -187,6 +185,7 @@ trait BatchTreeModel {
 
 object RandomForest {
   type ModelBuilderFactory = DecisionTreeParams => BatchTreeModel
+  val defaultBatchSize: Int = 10
 
   def wideDecisionTreeBuilder(params: DecisionTreeParams): BatchTreeModel = {
     val decisionTree = new DecisionTree(params)
@@ -200,8 +199,6 @@ object RandomForest {
           models.asInstanceOf[Seq[DecisionTreeModel]], indexes)
     }
   }
-
-  val defaultBatchSize: Int = 10
 }
 
 /** Implements random forest
