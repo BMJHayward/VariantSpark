@@ -57,18 +57,20 @@ class PredictCmd extends ArgsApp with FeatureSourceArgs with Echoable with Loggi
       2 -> M.getOrElse(2, 0).toFloat / total)
   }
 
-  def makeLabels(featureCount: Int): Unit = {
-    val phenotypes = List("blue", "brown", "black", "green", "yellow", "grey")
+  override def run(): Unit = {
+    implicit val hadoopConf: Configuration = sc.hadoopConfiguration
+    val featureCount = featureSource.features.count.toInt
+    val phenoTypes = List("blue", "brown", "black", "green", "yellow", "grey")
     val phenoLabels = Range(0, featureCount).toList
-      .map(_ => Random.nextInt.abs.toDouble % phenotypes.length)
-  }
-  /*
-    val labPts = phenoLabels zip featureSource.features.collect map {
+      .map(_ => phenoTypes(Random.nextInt.abs.toInt % phenoTypes.length))
+    val phenoLabelIndex = Range(0, featureCount).toList
+      .map(_ => Random.nextInt.abs.toDouble % phenoTypes.length)
+    val labPts = phenoLabelIndex zip featureSource.features.collect map {
       case (label, feat) => LabeledPoint(label, feat.valueAsVector)
     }
     val labPtsRDD = sc.parallelize(labPts)
     val catInfo = immutable.Map[Int, Int]()
-    val numClasses = phenotypes.length
+    val numClasses = phenoTypes.length
     val numTrees = 5
     val subsetStrat = "auto"
     val impurity = "gini"
@@ -77,22 +79,20 @@ class PredictCmd extends ArgsApp with FeatureSourceArgs with Echoable with Loggi
     val intSeed = 0
     val sparkRFModel = SparkForest.trainClassifier(labPtsRDD, numClasses, catInfo, numTrees,
       subsetStrat, impurity, maxDepth, maxBins, intSeed)
-   */
-
-  override def run(): Unit = {
-    implicit val hadoopConf: Configuration = sc.hadoopConfiguration
     println("running predict cmd")
     logInfo("Running with params: " + ToStringBuilder.reflectionToString(this))
     echo(s"Analyzing random forest model")
+    /*
     if (inputFile != null) {
       val labelSource = new CsvLabelSource(labelFile, labelColumn)
       val labels = labelSource.getLabels(featureSource.sampleNames)
-    } else {
-      val labels = makeLabels(featureSource.features.count.toInt)
-    }
+    } else {}
+     */
     val rfModel = LoanUtils.withCloseable(new FileInputStream(inputModel)) { in =>
       si.deserializeStream(in).readObject().asInstanceOf[RandomForestModel]
     }
+    echo(s"Using spark RF Model: ${sparkRFModel.toString}")
+    echo(s"Using labels: ${phenoLabels}")
     echo(s"Loaded rows: ${dumpList(featureSource.sampleNames)}")
     echo(s"Loaded model of size: ${rfModel.size}")
     lazy val featureList =
