@@ -29,13 +29,13 @@ import scala.util.Random
 
 class PredictCmd extends ArgsApp with FeatureSourceArgs with Echoable with Logging with TestArgs {
 
-  @Option(name = "-im", required = true, usage = "Path to input model",
-    aliases = Array("--input-model"))
-  val inputModel: String = null
+  @Option(name = "-lf", required = false, usage = "Path to label file",
+    aliases = Array("--label-file"))
+  val labelFile: String = null
 
-  @Option(name = "-of", required = false, usage = "Path to output file (def = stdout)",
-    aliases = Array("--output-file"))
-  val outputFile: String = null
+  @Option(name = "-lc", required = false, usage = "Label file column name",
+    aliases = Array("--label-column"))
+  val labelColumn: String = null
 
   val javaSerializer = new JavaSerializer(conf)
   val si = javaSerializer.newInstance()
