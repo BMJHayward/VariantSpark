@@ -5,9 +5,11 @@ import java.io.{FileInputStream, FileOutputStream, ObjectOutputStream, OutputStr
 import org.json4s.jackson.Serialization.{write, writePretty}
 import au.csiro.pbdava.ssparkle.common.arg4j.{AppRunner, TestArgs}
 import au.csiro.pbdava.ssparkle.common.utils.{LoanUtils, Logging}
+import au.csiro.pbdava.ssparkle.spark.SparkUtils
 import au.csiro.sparkle.common.args4j.ArgsApp
 import au.csiro.variantspark.algo.RandomForestModel
 import au.csiro.variantspark.cli.args.FeatureSourceArgs
+import au.csiro.variantspark.cli.args.ModelOutputArgs
 import au.csiro.variantspark.cmd.EchoUtils._
 import au.csiro.variantspark.cmd.Echoable
 import au.csiro.variantspark.input._
@@ -27,7 +29,9 @@ import org.kohsuke.args4j.Option
 import scala.collection._
 import scala.util.Random
 
-class PredictCmd extends ArgsApp with FeatureSourceArgs with Echoable with Logging with TestArgs {
+class TrainRfCmd
+    extends ArgsApp with FeatureSourceArgs with ModelOutputArgs with Echoable with Logging
+    with TestArgs {
 
   @Option(name = "-lf", required = false, usage = "Path to label file",
     aliases = Array("--label-file"))
@@ -74,32 +78,23 @@ class PredictCmd extends ArgsApp with FeatureSourceArgs with Echoable with Loggi
     println("running predict cmd")
     logInfo("Running with params: " + ToStringBuilder.reflectionToString(this))
     echo(s"Analyzing random forest model")
-    /*
-    if (inputFile != null) {
-      val labelSource = new CsvLabelSource(labelFile, labelColumn)
-      val labels = labelSource.getLabels(featureSource.sampleNames)
-    } else {}
-     */
-    val rfModel = LoanUtils.withCloseable(new FileInputStream(inputModel)) { in =>
-      si.deserializeStream(in).readObject().asInstanceOf[RandomForestModel]
-    }
     echo(s"Using spark RF Model: ${sparkRFModel.toString}")
     echo(s"Using labels: ${phenoLabels}")
     echo(s"Loaded rows: ${dumpList(featureSource.sampleNames)}")
-    echo(s"Loaded model of size: ${rfModel.size}")
+    // echo(s"Loaded model of size: ${sparkRFModel.size}")
     lazy val featureList =
       featureSource.features.collect().map { feat => (feat.label, feat.valueAsStrings) }
     lazy val inputData = featureSource.features.zipWithIndex().cache()
-    val predictions = rfModel.predict(inputData)
-    val outputData = featureSource.sampleNames zip predictions
-    if (outputFile != null) {
-      sc.parallelize(outputData).saveAsTextFile(outputFile)
-    } else outputData.foreach(println)
+
+    val index = Range(0, featureCount).map(f => (f.toLong, f.toString)).toMap
+    if (modelFile != null) {
+      sparkRFModel.save(sc, modelFile)
+    }
   }
 }
 
-object PredictCmd {
+object TrainRfCmd {
   def main(args: Array[String]) {
-    AppRunner.mains[PredictCmd](args)
+    AppRunner.mains[TrainRfCmd](args)
   }
 }
