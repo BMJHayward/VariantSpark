@@ -16,6 +16,7 @@ import org.apache.commons.lang3.builder.ToStringBuilder
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.FileSystem
 import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.spark.mllib.tree.model.{RandomForestModel => SparkForestModel}
 import org.apache.spark.mllib.tree.{
   DecisionTree,
   GradientBoostedTrees,
@@ -51,6 +52,7 @@ class PredictCmd extends ArgsApp with FeatureSourceArgs with Echoable with Loggi
 
   override def run(): Unit = {
     implicit val hadoopConf: Configuration = sc.hadoopConfiguration
+
     val featureCount = featureSource.features.count.toInt
     val phenoTypes = List("blue", "brown", "black", "green", "yellow", "grey")
     val phenoLabels = Range(0, featureCount).toList
@@ -61,36 +63,23 @@ class PredictCmd extends ArgsApp with FeatureSourceArgs with Echoable with Loggi
       case (label, feat) => LabeledPoint(label, feat.valueAsVector)
     }
     val labPtsRDD = sc.parallelize(labPts)
-    val catInfo = immutable.Map[Int, Int]()
-    val numClasses = phenoTypes.length
-    val numTrees = 5
-    val subsetStrat = "auto"
-    val impurity = "gini"
-    val maxDepth = 5
-    val maxBins = 32
-    val intSeed = 0
-    val sparkRFModel = SparkForest.trainClassifier(labPtsRDD, numClasses, catInfo, numTrees,
-      subsetStrat, impurity, maxDepth, maxBins, intSeed)
+
     println("running predict cmd")
     logInfo("Running with params: " + ToStringBuilder.reflectionToString(this))
     echo(s"Analyzing random forest model")
-    /*
-    if (inputFile != null) {
-      val labelSource = new CsvLabelSource(labelFile, labelColumn)
-      val labels = labelSource.getLabels(featureSource.sampleNames)
-    } else {}
-     */
-    val rfModel = LoanUtils.withCloseable(new FileInputStream(inputModel)) { in =>
-      si.deserializeStream(in).readObject().asInstanceOf[RandomForestModel]
-    }
+    val sparkRFModel = SparkForestModel.load(sc, inputModel)
+
     echo(s"Using spark RF Model: ${sparkRFModel.toString}")
     echo(s"Using labels: ${phenoLabels}")
     echo(s"Loaded rows: ${dumpList(featureSource.sampleNames)}")
-    echo(s"Loaded model of size: ${rfModel.size}")
+    echo(s"Trees in model: ${sparkRFModel.numTrees}")
+    echo(s"Nodes in model: ${sparkRFModel.totalNumNodes}")
+
     lazy val featureList =
       featureSource.features.collect().map { feat => (feat.label, feat.valueAsStrings) }
     lazy val inputData = featureSource.features.zipWithIndex().cache()
-    val predictions = rfModel.predict(inputData)
+    val predictions =
+      sparkRFModel.predict(sc.parallelize(featureSource.features.collect.toVector))
     val outputData = featureSource.sampleNames zip predictions
     if (outputFile != null) {
       sc.parallelize(outputData).saveAsTextFile(outputFile)
