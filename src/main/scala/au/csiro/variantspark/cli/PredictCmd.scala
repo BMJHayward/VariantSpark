@@ -56,13 +56,7 @@ class PredictCmd extends ArgsApp with FeatureSourceArgs with Echoable with Loggi
     val featureCount = featureSource.features.count.toInt
     val phenoTypes = List("blue", "brown", "black", "green", "yellow", "grey")
     val phenoLabels = Range(0, featureCount).toList
-      .map(_ => phenoTypes(Random.nextInt.abs.toInt % phenoTypes.length))
-    val phenoLabelIndex = Range(0, featureCount).toList
-      .map(_ => Random.nextInt.abs.toDouble % phenoTypes.length)
-    val labPts = phenoLabelIndex zip featureSource.features.collect map {
-      case (label, feat) => LabeledPoint(label, feat.valueAsVector)
-    }
-    val labPtsRDD = sc.parallelize(labPts)
+      .map(_ => phenoTypes(Random.nextInt.abs % phenoTypes.length))
 
     println("running predict cmd")
     logInfo("Running with params: " + ToStringBuilder.reflectionToString(this))
@@ -70,20 +64,18 @@ class PredictCmd extends ArgsApp with FeatureSourceArgs with Echoable with Loggi
     val sparkRFModel = SparkForestModel.load(sc, inputModel)
 
     echo(s"Using spark RF Model: ${sparkRFModel.toString}")
-    echo(s"Using labels: ${phenoLabels}")
+    echo(s"Using labels: $phenoLabels")
     echo(s"Loaded rows: ${dumpList(featureSource.sampleNames)}")
     echo(s"Trees in model: ${sparkRFModel.numTrees}")
     echo(s"Nodes in model: ${sparkRFModel.totalNumNodes}")
 
-    lazy val featureList =
-      featureSource.features.collect().map { feat => (feat.label, feat.valueAsStrings) }
-    lazy val inputData = featureSource.features.zipWithIndex().cache()
-    val predictions =
-      sparkRFModel.predict(sc.parallelize(featureSource.features.collect.toVector))
-    val outputData = featureSource.sampleNames zip predictions
+    lazy val featureVectors = featureSource.features.map { f => f.valueAsVector }
+    val predictions = {
+      sparkRFModel.predict(featureVectors)
+    }
     if (outputFile != null) {
-      sc.parallelize(outputData).saveAsTextFile(outputFile)
-    } else outputData.foreach(println)
+      predictions.saveAsTextFile(outputFile)
+    } else predictions.foreach(println)
   }
 }
 

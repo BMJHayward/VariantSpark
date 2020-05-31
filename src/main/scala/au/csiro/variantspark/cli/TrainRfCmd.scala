@@ -29,7 +29,7 @@ import org.kohsuke.args4j.Option
 import scala.collection._
 import scala.util.Random
 
-class TrainRfCmd
+class TrainRFCmd
     extends ArgsApp with FeatureSourceArgs with ModelOutputArgs with Echoable with Logging
     with TestArgs {
 
@@ -58,7 +58,7 @@ class TrainRfCmd
     val featureCount = featureSource.features.count.toInt
     val phenoTypes = List("blue", "brown", "black", "green", "yellow", "grey")
     val phenoLabels = Range(0, featureCount).toList
-      .map(_ => phenoTypes(Random.nextInt.abs.toInt % phenoTypes.length))
+      .map(_ => phenoTypes(Random.nextInt.abs % phenoTypes.length))
     val phenoLabelIndex = Range(0, featureCount).toList
       .map(_ => Random.nextInt.abs.toDouble % phenoTypes.length)
     val labPts = phenoLabelIndex zip featureSource.features.collect map {
@@ -79,22 +79,17 @@ class TrainRfCmd
     logInfo("Running with params: " + ToStringBuilder.reflectionToString(this))
     echo(s"Analyzing random forest model")
     echo(s"Using spark RF Model: ${sparkRFModel.toString}")
-    echo(s"Using labels: ${phenoLabels}")
+    echo(s"Using labels: $phenoTypes")
     echo(s"Loaded rows: ${dumpList(featureSource.sampleNames)}")
-    // echo(s"Loaded model of size: ${sparkRFModel.size}")
-    lazy val featureList =
-      featureSource.features.collect().map { feat => (feat.label, feat.valueAsStrings) }
-    lazy val inputData = featureSource.features.zipWithIndex().cache()
 
-    val index = Range(0, featureCount).map(f => (f.toLong, f.toString)).toMap
     if (modelFile != null) {
       sparkRFModel.save(sc, modelFile)
     }
   }
 }
 
-object TrainRfCmd {
+object TrainRFCmd {
   def main(args: Array[String]) {
-    AppRunner.mains[TrainRfCmd](args)
+    AppRunner.mains[TrainRFCmd](args)
   }
 }
