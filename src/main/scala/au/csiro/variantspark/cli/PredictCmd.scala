@@ -7,7 +7,12 @@ import au.csiro.pbdava.ssparkle.common.arg4j.{AppRunner, TestArgs}
 import au.csiro.pbdava.ssparkle.common.utils.{LoanUtils, Logging}
 import au.csiro.sparkle.common.args4j.ArgsApp
 import au.csiro.variantspark.algo.RandomForestModel
-import au.csiro.variantspark.cli.args.FeatureSourceArgs
+import au.csiro.variantspark.cli.args.{
+  FeatureSourceArgs,
+  LabelSourceArgs,
+  ModelOutputArgs,
+  RandomForestArgs
+}
 import au.csiro.variantspark.cmd.EchoUtils._
 import au.csiro.variantspark.cmd.Echoable
 import au.csiro.variantspark.input._
@@ -28,7 +33,9 @@ import org.kohsuke.args4j.Option
 import scala.collection._
 import scala.util.Random
 
-class PredictCmd extends ArgsApp with FeatureSourceArgs with Echoable with Logging with TestArgs {
+class PredictCmd
+    extends ArgsApp with FeatureSourceArgs with LabelSourceArgs with Echoable with Logging
+    with TestArgs {
 
   @Option(name = "-im", required = true, usage = "Path to input model",
     aliases = Array("--input-model"))
@@ -37,7 +44,6 @@ class PredictCmd extends ArgsApp with FeatureSourceArgs with Echoable with Loggi
   @Option(name = "-of", required = false, usage = "Path to output file (def = stdout)",
     aliases = Array("--output-file"))
   val outputFile: String = null
-
   val javaSerializer = new JavaSerializer(conf)
   val si = javaSerializer.newInstance()
 
@@ -53,6 +59,19 @@ class PredictCmd extends ArgsApp with FeatureSourceArgs with Echoable with Loggi
   override def run(): Unit = {
     implicit val hadoopConf: Configuration = sc.hadoopConfiguration
 
+    // echo(s"Loading labels from: ${featuresFile}, column: ${featureColumn}")
+    if (featuresFile != null) {
+      val labFile =
+        spark.read.format("csv").option("header", "true").load(featuresFile)
+      val labs = labFile.select(featureColumn).rdd.map(_(0)).collect.toList
+      echo(s"Loaded labels from file: ${labs.toSet}")
+    } else {
+      // val labelSource = new CsvLabelSource(featuresFile, featureColumn)
+      // val labels = labelSource.getLabels(featureSource.sampleNames)
+      val labels = List("blue", "brown", "black", "green", "yellow", "grey")
+      echo(s"Loaded labels: ${dumpList(labels.toList)}")
+    }
+
     val featureCount = featureSource.features.count.toInt
     val phenoTypes = List("blue", "brown", "black", "green", "yellow", "grey")
     val phenoLabels = Range(0, featureCount).toList
@@ -64,7 +83,6 @@ class PredictCmd extends ArgsApp with FeatureSourceArgs with Echoable with Loggi
     val sparkRFModel = SparkForestModel.load(sc, inputModel)
 
     echo(s"Using spark RF Model: ${sparkRFModel.toString}")
-    echo(s"Using labels: $phenoLabels")
     echo(s"Loaded rows: ${dumpList(featureSource.sampleNames)}")
     echo(s"Trees in model: ${sparkRFModel.numTrees}")
     echo(s"Nodes in model: ${sparkRFModel.totalNumNodes}")
@@ -73,9 +91,11 @@ class PredictCmd extends ArgsApp with FeatureSourceArgs with Echoable with Loggi
     val predictions = {
       sparkRFModel.predict(featureVectors)
     }
+
     if (outputFile != null) {
       predictions.saveAsTextFile(outputFile)
     } else predictions.foreach(println)
+    // } else predictions.map{p => (p._1, labels(p._2)} foreach(println)
   }
 }
 
