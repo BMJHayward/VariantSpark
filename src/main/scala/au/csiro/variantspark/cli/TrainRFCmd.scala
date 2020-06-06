@@ -41,18 +41,40 @@ class TrainRFCmd
 
   override def run(): Unit = {
     implicit val hadoopConf: Configuration = sc.hadoopConfiguration
-    val featureCount = featureSource.features.count.toInt
-    val phenoTypes = List("blue", "brown", "black", "green", "yellow", "grey")
-    val phenoLabels = Range(0, featureCount).toList
-      .map(_ => phenoTypes(Random.nextInt.abs % phenoTypes.length))
-    val phenoLabelIndex = Range(0, featureCount).toList
-      .map(_ => Random.nextInt.abs.toDouble % phenoTypes.length)
-    val labPts = phenoLabelIndex zip featureSource.features.collect map {
+
+    // echo(s"Loading labels from: ${featuresFile}, column: ${featureColumn}")
+    val labels: List[Double] =
+      if (featuresFile != null) {
+        val labFile =
+          spark.read.format("csv").option("header", "true").load(featuresFile)
+        val labCol = labFile.select(featureColumn).rdd.map(_(0)).collect.toList
+        labCol.map(_.toString.toDouble)
+      } else {
+        // val labelSource = new CsvLabelSource(featuresFile, featureColumn)
+        // val labels = labelSource.getLabels(featureSource.sampleNames)
+        val dummyLabels =
+          List("blue", "brown", "black", "green", "yellow", "grey")
+        val featureCount = featureSource.features.count.toInt
+        val phenoLabelIndex = Range(0, featureCount).toList
+          .map(_ => Random.nextInt.abs.toDouble % dummyLabels.length)
+        phenoLabelIndex
+      }
+
+    /* write map of labels to file for lookup after prediction
+      allows human readable labels in results
+     */
+    val pt2Label = labels.toSet.zipWithIndex.toMap
+    val label2Pt = pt2Label.map(l => l.swap)
+    sc.parallelize(pt2Label.toSeq).saveAsTextFile(modelFile + ".labelMap")
+    echo(s"Loaded labels from file: ${labels.toSet}")
+    echo(s"Loaded labels: ${dumpList(labels)}")
+
+    val labPts = labels zip featureSource.features.collect map {
       case (label, feat) => LabeledPoint(label, feat.valueAsVector)
     }
     val labPtsRDD = sc.parallelize(labPts)
     val catInfo = immutable.Map[Int, Int]()
-    val numClasses = phenoTypes.length
+    val numClasses = labels.toSet.size
     val numTrees = 5
     val subsetStrat = "auto"
     val impurity = "gini"
@@ -65,7 +87,7 @@ class TrainRFCmd
     logInfo("Running with params: " + ToStringBuilder.reflectionToString(this))
     echo(s"Analyzing random forest model")
     echo(s"Using spark RF Model: ${sparkRFModel.toString}")
-    echo(s"Using labels: $phenoTypes")
+    echo(s"Using labels: ${labels}")
     echo(s"Loaded rows: ${dumpList(featureSource.sampleNames)}")
 
     if (modelFile != null) {

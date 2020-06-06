@@ -81,6 +81,7 @@ class PredictCmd
     logInfo("Running with params: " + ToStringBuilder.reflectionToString(this))
     echo(s"Analyzing random forest model")
     val sparkRFModel = SparkForestModel.load(sc, inputModel)
+    val labelMap = sc.textFile(inputModel + ".labelMap")
 
     echo(s"Using spark RF Model: ${sparkRFModel.toString}")
     echo(s"Loaded rows: ${dumpList(featureSource.sampleNames)}")
