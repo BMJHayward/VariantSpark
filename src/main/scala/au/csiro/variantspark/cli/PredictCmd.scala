@@ -1,37 +1,18 @@
 package au.csiro.variantspark.cli
 
-import java.io.{FileInputStream, FileOutputStream, ObjectOutputStream, OutputStreamWriter}
-
-import org.json4s.jackson.Serialization.{write, writePretty}
 import au.csiro.pbdava.ssparkle.common.arg4j.{AppRunner, TestArgs}
-import au.csiro.pbdava.ssparkle.common.utils.{LoanUtils, Logging}
+import au.csiro.pbdava.ssparkle.common.utils.Logging
 import au.csiro.sparkle.common.args4j.ArgsApp
-import au.csiro.variantspark.algo.RandomForestModel
-import au.csiro.variantspark.cli.args.{
-  FeatureSourceArgs,
-  LabelSourceArgs,
-  ModelOutputArgs,
-  RandomForestArgs
-}
+import au.csiro.variantspark.cli.args.{FeatureSourceArgs, LabelSourceArgs}
 import au.csiro.variantspark.cmd.EchoUtils._
 import au.csiro.variantspark.cmd.Echoable
-import au.csiro.variantspark.input._
-import au.csiro.variantspark.utils.HdfsPath
 import org.apache.commons.lang3.builder.ToStringBuilder
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.FileSystem
-import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.tree.model.{RandomForestModel => SparkForestModel}
-import org.apache.spark.mllib.tree.{
-  DecisionTree,
-  GradientBoostedTrees,
-  RandomForest => SparkForest
-}
-import org.apache.spark.rdd.RDD
-import org.apache.spark.serializer.JavaSerializer
+import org.apache.spark.serializer.{JavaSerializer, SerializerInstance}
 import org.kohsuke.args4j.Option
+
 import scala.collection._
-import scala.util.Random
 
 class PredictCmd
     extends ArgsApp with FeatureSourceArgs with LabelSourceArgs with Echoable with Logging
@@ -45,7 +26,7 @@ class PredictCmd
     aliases = Array("--output-file"))
   val outputFile: String = null
   val javaSerializer = new JavaSerializer(conf)
-  val si = javaSerializer.newInstance()
+  val si: SerializerInstance = javaSerializer.newInstance()
 
   override def testArgs: Array[String] =
     Array("-im", "file.model", "-if", "file.data", "-of", "outputpredictions.file")
@@ -59,42 +40,32 @@ class PredictCmd
   override def run(): Unit = {
     implicit val hadoopConf: Configuration = sc.hadoopConfiguration
 
-    // echo(s"Loading labels from: ${featuresFile}, column: ${featureColumn}")
-    if (featuresFile != null) {
-      val labFile =
-        spark.read.format("csv").option("header", "true").load(featuresFile)
-      val labs = labFile.select(featureColumn).rdd.map(_(0)).collect.toList
-      echo(s"Loaded labels from file: ${labs.toSet}")
-    } else {
-      // val labelSource = new CsvLabelSource(featuresFile, featureColumn)
-      // val labels = labelSource.getLabels(featureSource.sampleNames)
-      val labels = List("blue", "brown", "black", "green", "yellow", "grey")
-      echo(s"Loaded labels: ${dumpList(labels.toList)}")
-    }
-
-    val featureCount = featureSource.features.count.toInt
-    val phenoTypes = List("blue", "brown", "black", "green", "yellow", "grey")
-    val phenoLabels = Range(0, featureCount).toList
-      .map(_ => phenoTypes(Random.nextInt.abs % phenoTypes.length))
-
     println("running predict cmd")
     logInfo("Running with params: " + ToStringBuilder.reflectionToString(this))
     echo(s"Analyzing random forest model")
     val sparkRFModel = SparkForestModel.load(sc, inputModel)
     val labelMap = sc.textFile(inputModel + ".labelMap")
+    val newMap = labelMap
+      .map { l => l.stripPrefix("(").stripSuffix(")").split(",") }
+      .map { t => (t(0).toInt, t(1)) }
+      .collect
+      .toMap
 
     echo(s"Using spark RF Model: ${sparkRFModel.toString}")
     echo(s"Loaded rows: ${dumpList(featureSource.sampleNames)}")
     echo(s"Trees in model: ${sparkRFModel.numTrees}")
     echo(s"Nodes in model: ${sparkRFModel.totalNumNodes}")
+    echo(s"Labels in labelMap:\n${labelMap foreach println}")
 
     lazy val featureVectors = featureSource.features.map { f => f.valueAsVector }
     val predictions = {
       sparkRFModel.predict(featureVectors)
     }
-
     if (outputFile != null) {
       predictions.saveAsTextFile(outputFile)
+      predictions
+        .map { p: Double => (newMap(p.toInt), p) }
+        .saveAsTextFile(outputFile + ".labelMap")
     } else predictions.foreach(println)
     // } else predictions.map{p => (p._1, labels(p._2)} foreach(println)
   }

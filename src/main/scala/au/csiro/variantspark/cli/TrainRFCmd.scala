@@ -15,7 +15,7 @@ import org.apache.commons.lang3.builder.ToStringBuilder
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.tree.{RandomForest => SparkForest}
-import org.apache.spark.serializer.JavaSerializer
+import org.apache.spark.serializer.{JavaSerializer, SerializerInstance}
 import org.kohsuke.args4j.Option
 
 import scala.collection._
@@ -34,7 +34,7 @@ class TrainRFCmd
   val labelColumn: String = null
 
   val javaSerializer = new JavaSerializer(conf)
-  val si = javaSerializer.newInstance()
+  val si: SerializerInstance = javaSerializer.newInstance()
 
   override def testArgs: Array[String] =
     Array("-im", "file.model", "-if", "file.data", "-of", "outputpredictions.file")
@@ -43,34 +43,35 @@ class TrainRFCmd
     implicit val hadoopConf: Configuration = sc.hadoopConfiguration
 
     // echo(s"Loading labels from: ${featuresFile}, column: ${featureColumn}")
-    val labels: List[Double] =
+    val labels: List[String] =
       if (featuresFile != null) {
         val labFile =
           spark.read.format("csv").option("header", "true").load(featuresFile)
         val labCol = labFile.select(featureColumn).rdd.map(_(0)).collect.toList
-        labCol.map(_.toString.toDouble)
+        labCol.map(_.toString)
       } else {
         // val labelSource = new CsvLabelSource(featuresFile, featureColumn)
         // val labels = labelSource.getLabels(featureSource.sampleNames)
         val dummyLabels =
           List("blue", "brown", "black", "green", "yellow", "grey")
+        // val featureCount = 2000
         val featureCount = featureSource.features.count.toInt
         val phenoLabelIndex = Range(0, featureCount).toList
-          .map(_ => Random.nextInt.abs.toDouble % dummyLabels.length)
+          .map(_ => dummyLabels(Random.nextInt.abs % dummyLabels.length))
         phenoLabelIndex
       }
-
     /* write map of labels to file for lookup after prediction
       allows human readable labels in results
      */
-    val pt2Label = labels.toSet.zipWithIndex.toMap
-    val label2Pt = pt2Label.map(l => l.swap)
-    sc.parallelize(pt2Label.toSeq).saveAsTextFile(modelFile + ".labelMap")
+    val label2pt = labels.toSet.zipWithIndex.toMap
+    val pt2label = label2pt.map(l => l.swap)
+    sc.parallelize(pt2label.toSeq).saveAsTextFile(modelFile + ".labelMap")
     echo(s"Loaded labels from file: ${labels.toSet}")
     echo(s"Loaded labels: ${dumpList(labels)}")
 
     val labPts = labels zip featureSource.features.collect map {
-      case (label, feat) => LabeledPoint(label, feat.valueAsVector)
+      case (label, feat) =>
+        LabeledPoint(label2pt(label).toDouble, feat.valueAsVector)
     }
     val labPtsRDD = sc.parallelize(labPts)
     val catInfo = immutable.Map[Int, Int]()
