@@ -67,6 +67,10 @@ class PredictCmd
         .map { p: Double => (newMap(p.toInt), p) }
         .saveAsTextFile(outputFile + ".labelMap")
     } else predictions.foreach(println)
+    echo(s"Label, Count, Frequency")
+    predictions.countByValue.map { p =>
+      (p._1, p._2, p._2 / predictions.count.toDouble)
+    } foreach println
     // } else predictions.map{p => (p._1, labels(p._2)} foreach(println)
   }
 }

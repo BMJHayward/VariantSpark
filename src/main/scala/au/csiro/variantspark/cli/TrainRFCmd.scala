@@ -3,6 +3,7 @@ package au.csiro.variantspark.cli
 import au.csiro.pbdava.ssparkle.common.arg4j.{AppRunner, TestArgs}
 import au.csiro.pbdava.ssparkle.common.utils.Logging
 import au.csiro.sparkle.common.args4j.ArgsApp
+import au.csiro.variantspark.utils.defRng
 import au.csiro.variantspark.cli.args.{
   FeatureSourceArgs,
   LabelSourceArgs,
@@ -15,6 +16,8 @@ import org.apache.commons.lang3.builder.ToStringBuilder
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.tree.{RandomForest => SparkForest}
+import org.apache.spark.mllib.tree.model.{RandomForestModel => SparkForestModel}
+import org.apache.spark.rdd.RDD
 import org.apache.spark.serializer.{JavaSerializer, SerializerInstance}
 import org.kohsuke.args4j.Option
 
@@ -76,14 +79,14 @@ class TrainRFCmd
     val labPtsRDD = sc.parallelize(labPts)
     val catInfo = immutable.Map[Int, Int]()
     val numClasses = labels.toSet.size
-    val numTrees = 5
+    val numTrees = scala.Option(nTrees).getOrElse(5)
     val subsetStrat = "auto"
     val impurity = "gini"
-    val maxDepth = 5
+    val maxDepth: Int = scala.Option(rfMaxDepth).getOrElse(30)
     val maxBins = 32
-    val intSeed = 0
-    val sparkRFModel = SparkForest.trainClassifier(labPtsRDD, numClasses, catInfo, numTrees,
-      subsetStrat, impurity, maxDepth, maxBins, intSeed)
+    val intSeed = defRng.nextLong.toInt
+    val sparkRFModel: SparkForestModel = SparkForest.trainClassifier(labPtsRDD, numClasses,
+      catInfo, numTrees, subsetStrat, impurity, scala.math.min(maxDepth, 30), maxBins, intSeed)
     println("running train cmd")
     logInfo("Running with params: " + ToStringBuilder.reflectionToString(this))
     echo(s"Analyzing random forest model")
