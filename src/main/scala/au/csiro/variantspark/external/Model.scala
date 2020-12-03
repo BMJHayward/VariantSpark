@@ -1,11 +1,5 @@
 package au.csiro.variantspark.external
 
-import au.csiro.variantspark.algo.RandomForestModel
-import au.csiro.variantspark.algo.DecisionTreeNode
-import au.csiro.variantspark.algo.LeafNode
-import au.csiro.variantspark.algo.SplitNode
-import au.csiro.variantspark.algo.RandomForestMember
-import au.csiro.variantspark.algo.DecisionTreeModel
 import au.csiro.variantspark.algo.RandomForestParams
 
 trait Node

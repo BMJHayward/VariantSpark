@@ -4,11 +4,9 @@ import java.io.FileInputStream
 import java.io.ObjectInputStream
 
 import scala.collection.JavaConverters._
-
 import org.apache.commons.lang3.builder.ToStringBuilder
 import au.csiro.pbdava.ssparkle.common.utils.Logging
 import org.kohsuke.args4j.Option
-
 import au.csiro.pbdava.ssparkle.common.arg4j.AppRunner
 import au.csiro.pbdava.ssparkle.common.arg4j.TestArgs
 import au.csiro.sparkle.common.args4j.ArgsApp
@@ -18,21 +16,20 @@ import au.csiro.variantspark.utils.IndexedRDDFunction._
 import au.csiro.variantspark.utils.VectorRDDFunction._
 import au.csiro.variantspark.utils.defRng
 import au.csiro.variantspark.algo.RandomForestModel
-import au.csiro.variantspark.cli.args.FeatureSourceArgs
+import au.csiro.variantspark.cli.args.{FeatureSourceArgs, LabelSourceArgs, ModelIOArgs, SparkArgs}
 import au.csiro.pbdava.ssparkle.spark.SparkUtils
 import org.apache.spark.serializer.JavaSerializer
-import au.csiro.variantspark.cli.args.SparkArgs
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap
-import au.csiro.variantspark.cli.args.LabelSourceArgs
 import au.csiro.pbdava.ssparkle.common.utils.CSVUtils
 import au.csiro.pbdava.ssparkle.common.utils.LoanUtils
 
 class AnalyzeRFCmd
-    extends ArgsApp with FeatureSourceArgs with Echoable with Logging with TestArgs {
+    extends ArgsApp with ModelIOArgs with FeatureSourceArgs with Echoable with Logging
+    with TestArgs {
 
   @Option(name = "-im", required = true, usage = "Path to input model",
     aliases = Array("--input-model"))
-  val inputModel: String = null
+  override val inputModel: String = null
 
   @Option(name = "-ii", required = false, usage = "Path to input variable index file",
     aliases = Array("--input-idnex"))
@@ -77,9 +74,7 @@ class AnalyzeRFCmd
     val javaSerializer = new JavaSerializer(conf)
     val si = javaSerializer.newInstance()
 
-    val rfModel = LoanUtils.withCloseable(new FileInputStream(inputModel)) { in =>
-      si.deserializeStream(in).readObject().asInstanceOf[RandomForestModel]
-    }
+    val rfModel = loadModel(inputModel, inputModelFormat)
 
     echo(s"Loaded model of size: ${rfModel.size}")
 

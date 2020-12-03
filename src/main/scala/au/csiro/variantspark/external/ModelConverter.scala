@@ -1,13 +1,13 @@
 package au.csiro.variantspark.external
 
-import au.csiro.variantspark.algo.RandomForestModel
-import au.csiro.variantspark.algo.RandomForestMember
-import au.csiro.variantspark.algo.DecisionTreeModel
-import au.csiro.variantspark.algo.DecisionTreeNode
-import au.csiro.variantspark.algo.LeafNode
-import au.csiro.variantspark.algo.SplitNode
-import org.apache.spark.rdd.RDD
-import au.csiro.pbdava.ssparkle.spark.SparkUtils
+import au.csiro.variantspark.algo.{
+  DecisionTreeModel,
+  DecisionTreeNode,
+  LeafNode,
+  RandomForestMember,
+  RandomForestModel,
+  SplitNode
+}
 
 class ModelConverter(varIndex: Map[Long, String]) {
 
@@ -44,4 +44,28 @@ class ModelConverter(varIndex: Map[Long, String]) {
       }
     Forest(Option(rfModel.params), rfModel.members.map(toExternal), oobErrors)
   }
+
+  def toInternal(leafOrSplit: Node): DecisionTreeNode with Product = {
+    leafOrSplit match {
+      case Leaf(majorityLabel, classCounts, size, nodeImpurity) =>
+        LeafNode(majorityLabel, classCounts, size, nodeImpurity)
+      case Split(majorityLabel, classCounts, size, nodeImpurity, splitVar, splitVarIndex,
+          isPermutated, splitPoint, impurityReduction, left, right) =>
+        SplitNode(majorityLabel, classCounts, size, nodeImpurity,
+          splitVarIndex.toString + splitVar, splitPoint, impurityReduction, toInternal(left),
+          toInternal(right), isPermutated)
+      case _ => throw new IllegalArgumentException("Unknown node type:" + leafOrSplit)
+    }
+
+  }
+
+  def toInternal(tree: Tree): RandomForestMember = { tree =>
+    tree.asInstanceOf[RandomForestMember]
+  }
+
+  def toInternal(forest: Forest, labelCount: Int): RandomForestModel = {
+    RandomForestModel(forest.trees.map(toInternal), labelCount, forest.oobErrors,
+      Some(forest.params))
+  }
+
 }
