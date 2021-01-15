@@ -85,6 +85,36 @@ class ModelConverter(varIndex: Map[Long, String]) {
       case leaf: Leaf =>
         "nameL" -> leaf.nameL
     }))
+
+    class TreeSerializer extends CustomSerializer[tree](format => ({
+      case obj: jobject =>
+        implicit val formats: formats = format
+
+        if ((obj \ "left") == jlist([]) || (obj \ "right") == jlist([])) {
+          // stuff
+          obj.extract[leaf]
+        } else {
+          // other stuff
+          obj.extract[split]
+        }
+      }, {
+      case split: splitnode => jobject(
+        "majlab" -> jstring(split.majoritylabel),
+        "clscount" -> jstring(split.classcounts),
+        "size" -> jstring(split.size),
+        "ndimp" -> jstring(split.nodeimpurity),
+        "splitvar" -> jstring(split.splitvarindex),
+        "splitpt" -> jstring(split.splitpoint),
+        "impred" -> jstring(split.impurityreduction),
+        "left" -> jstring(split.tointernal(left)),
+        "right" -> jstring(split.tointernal(right)),
+        "isperm" -> jstring(split.ispermutated))
+      case leaf: leafnode => jobject(
+        "majlab" -> jstring(leaf.majoritylabel),
+        "clscount" -> jstring(leaf.classcounts),
+        "size" -> jstring(leaf.size),
+        "ndimp" -> jstring(leaf.nodeimpurity))
+    }))
     */
     tree.asInstanceOf[RandomForestMember]
   }
@@ -93,5 +123,4 @@ class ModelConverter(varIndex: Map[Long, String]) {
     RandomForestModel(forest.trees.map(toInternal), labelCount, forest.oobErrors,
       Some(forest.params))
   }
-
 }
