@@ -60,6 +60,8 @@ class ModelConverter(varIndex: Map[Long, String]) {
   }
 
   def toInternal(tree: Tree): RandomForestMember = { tree =>
+    // crazy times. try a customer deserialiser e.g.
+    // https://stackoverflow.com/questions/54322448/how-to-deserialize-a-scala-tree-with-json4s
     tree.asInstanceOf[RandomForestMember]
   }
 
