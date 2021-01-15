@@ -62,6 +62,30 @@ class ModelConverter(varIndex: Map[Long, String]) {
   def toInternal(tree: Tree): RandomForestMember = { tree =>
     // crazy times. try a customer deserialiser e.g.
     // https://stackoverflow.com/questions/54322448/how-to-deserialize-a-scala-tree-with-json4s
+    /*
+    import org.json4s.JsonDSL._
+
+    class TreeSerializer extends CustomSerializer[Tree](format => ({
+      case obj: JObject =>
+        implicit val formats: Formats = format
+
+        if ((obj \ "trees") == JNothing) {
+          Leaf(
+            (obj \ "nameL").extract[String]
+          )
+        } else {
+          Node(
+            (obj \ "nameN").extract[String],
+            (obj \ "trees").extract[List[Tree]]
+          )
+        }
+    }, {
+      case node: Node =>
+        JObject("nameN" -> JString(node.nameN), "trees" -> node.trees.map(Extraction.decompose))
+      case leaf: Leaf =>
+        "nameL" -> leaf.nameL
+    }))
+    */
     tree.asInstanceOf[RandomForestMember]
   }
 
