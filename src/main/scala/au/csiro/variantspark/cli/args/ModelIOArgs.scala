@@ -48,28 +48,11 @@ trait ModelIOArgs extends SparkArgs with Echoable {
   }
 
   def loadModelJson(inputModel: String): RandomForestModel = {
-    implicit val formats = Serialization.formats(NoTypeHints).preservingEmptyValues
-    val src = Source.fromFile(inputModel).mkString
-    val model = parse(src)
-    val params = model.children(0)
-    val forest = model.children(1)
-    val labelCount = 3
-    val someThing = new ModelConverter(Map(1L -> "1.0")).toInternal(forest, labelCount)
-    someThing
-    /*
-    LoanUtils.withCloseable(new FileInputStream(inputModel)) { in =>
-      parseJson(file2JsonInput(in))
-      Serialization.read[RandomForestModel](in)
+    implicit val hadoopConf: Configuration = sc.hadoopConfiguration
+    implicit val formats: AnyRef with Formats = Serialization.formats(NoTypeHints)
+    LoanUtils.withCloseable(new FileInputStream(inputModel)) { objectIn =>
+      Serialization.read(objectIn).asInstanceOf[RandomForestModel]
     }
-    val src = scala.io.Source.fromFile(inputModel)
-    val lines = {
-      try src.mkString
-      finally src.close()
-    }
-    parse(lines)
-    val modelString = sc.textFile(inputModel)
-    val modelJ: RDD[JsonInput => JValue] = modelString.map(_ => parse(_, true, true))
-   */
   }
 
   def loadModelJava(inputModel: String): RandomForestModel = {
