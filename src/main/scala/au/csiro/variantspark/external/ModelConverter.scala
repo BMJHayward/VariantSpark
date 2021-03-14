@@ -9,40 +9,37 @@ import au.csiro.variantspark.algo.{
   RandomForestParams,
   SplitNode
 }
-import org.json4s
 import org.json4s.{DefaultFormats, JsonAST, _}
 import org.json4s.JsonDSL._
 
 class TreeSerializer
-    extends CustomSerializer[Node](
-        format =>
-          ({
-          case obj: JObject =>
-            implicit val formats = {
-              format
-            }
+    extends CustomSerializer[Node](format =>
+        ({
+        case obj: JObject =>
+          implicit val formats: Formats = format
 
-            if ((obj \ "left") == JArray(List()) || (obj \ "right") == JArray(List())) {
-              // stuff
-              obj.extract[Leaf]
-            } else {
-              // other stuff
-              obj.extract[Split]
-            }
-        }, {
-          case split: SplitNode =>
-            JObject("majlab" -> JString(split.majorityLabel),
-              "clscount" -> JString(split.classCounts), "size" -> JString(split.size),
-              "ndimp" -> JString(split.nodeImpurity),
-              "splitvar" -> JString(split.splitVariableIndex),
-              "splitpt" -> JString(split.splitPoint),
-              "impred" -> JString(split.impurityReduction), "left" -> JString(split.left),
-              "right" -> JString(split.right), "isperm" -> JString(split.isPermutated))
-          case leaf: LeafNode =>
-            JObject("majlab" -> JString(leaf.majorityLabel),
-              "clscount" -> JString(leaf.classCounts), "size" -> JString(leaf.size),
-              "ndimp" -> JString(leaf.nodeImpurity))
-        }))
+          if ((obj \ "left") == JArray(List()) || (obj \ "right") == JArray(List())) {
+            // stuff
+            obj.extract[Leaf]
+          } else {
+            // other stuff
+            obj.extract[Split]
+          }
+      }, {
+        case split: SplitNode =>
+          implicit val formats: Formats = format
+          JObject("majlab" -> JInt(split.majorityLabel),
+            "clscount" -> JArray(List(split.classCounts.toList)), "size" -> JInt(split.size),
+            "ndimp" -> JDouble(split.nodeImpurity), "splitvar" -> JLong(split.splitVariableIndex),
+            "splitpt" -> JDouble(split.splitPoint), "impred" -> JDouble(split.impurityReduction),
+            "left" -> Extraction.decompose(split.left),
+            "right" -> Extraction.decompose(split.right), "isperm" -> JBool(split.isPermutated))
+        case leaf: LeafNode =>
+          implicit val formats: Formats = format
+          JObject("majlab" -> JInt(leaf.majorityLabel),
+            "clscount" -> JArray(List(leaf.classCounts.toList)), "size" -> JInt(leaf.size),
+            "ndimp" -> JDouble(leaf.nodeImpurity))
+      }))
 
 class ModelConverter(varIndex: Map[Long, String]) {
 
@@ -51,11 +48,10 @@ class ModelConverter(varIndex: Map[Long, String]) {
       case LeafNode(majorityLabel, classCounts, size, nodeImpurity) =>
         Leaf(majorityLabel, classCounts, size, nodeImpurity)
       case SplitNode(majorityLabel, classCounts, size, nodeImpurity, splitVariableIndex,
-          splitPoint, impurityReduction, left, right, isPermutated) => {
+          splitPoint, impurityReduction, left, right, isPermutated) =>
         Split(majorityLabel, classCounts, size, nodeImpurity,
           varIndex.getOrElse(splitVariableIndex, null), splitVariableIndex, isPermutated,
           splitPoint, impurityReduction, toExternal(left), toExternal(right))
-      }
       case _ => throw new IllegalArgumentException("Unknow node type:" + node)
     }
   }
@@ -81,7 +77,7 @@ class ModelConverter(varIndex: Map[Long, String]) {
   }
 
   def toInternalNode(node: JsonAST.JValue): Node = {
-    implicit val formats = DefaultFormats
+    implicit val formats: DefaultFormats.type = DefaultFormats
     node match {
       case JObject(List(("left", _))) => node.extract[Leaf]
       case JObject(List(("right", _))) => node.extract[Leaf]
@@ -92,11 +88,11 @@ class ModelConverter(varIndex: Map[Long, String]) {
     }
   }
 
-  def toInternal(tree: Tree): RandomForestMember = { tree =>
+  def toInternal(inTree: JsonAST.JValue): Node = {
     // crazy times. try a customer deserialiser e.g.
     // https://stackoverflow.com/questions/54322448/how-to-deserialize-a-scala-tree-with-json4s
-    /*
 
+    /*
     class TreeSerializer extends CustomSerializer[Tree](format => ({
       case obj: JObject =>
         implicit val formats: Formats = format
@@ -117,22 +113,17 @@ class ModelConverter(varIndex: Map[Long, String]) {
       case leaf: Leaf =>
         "nameL" -> leaf.nameL
     }))
-
-
     implicit val formats = DefaultFormats + new TreeSerializer
     read[Tree](tree)
      */
-
-    tree.asInstanceOf[RandomForestMember]
-    tree.children.map(toInternalNode(_).asInstanceOf[RandomForestMember])
+    // tree.children.map(toInternalNode(_).asInstanceOf[RandomForestMember])
+    implicit val formats: Formats = DefaultFormats + new TreeSerializer
+    toInternalNode(inTree)
   }
 
-  def toInternalForest(forest: JsonAST.JValue, labelCount: Int): RandomForestModel = {
-    implicit val formats = DefaultFormats
-    val forestChildren: List[RandomForestMember] = forest.children.map { tree =>
-      toInternalTree(tree)
-    }.toList
-    RandomForestModel(forestChildren, labelCount,
-      forest.extract[List[Double]], forest.extract[RandomForestParams])
+  def toInternalForest(forest: JsonAST.JValue, labelCount: Int): List[Node] = {
+    implicit val formats: DefaultFormats.type = DefaultFormats
+    val forestChildren: List[Node] = forest.children.map { tree => toInternal(tree) }
+    forestChildren
   }
 }
