@@ -4,17 +4,14 @@ import java.io.{FileInputStream, ObjectOutputStream, OutputStreamWriter}
 import au.csiro.pbdava.ssparkle.common.utils.LoanUtils
 import au.csiro.variantspark.algo.RandomForestModel
 import au.csiro.variantspark.cmd.Echoable
-import au.csiro.variantspark.external.ModelConverter
+import au.csiro.variantspark.external._
 import au.csiro.variantspark.utils.HdfsPath
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.serializer.JavaSerializer
-import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization
 import org.json4s.jackson.Serialization.writePretty
 import org.json4s.{NoTypeHints, _}
 import org.kohsuke.args4j.{Option => ArgsOption}
-
-import scala.io.Source
 
 trait ModelIOArgs extends SparkArgs with Echoable {
 
@@ -49,7 +46,8 @@ trait ModelIOArgs extends SparkArgs with Echoable {
 
   def loadModelJson(inputModel: String): RandomForestModel = {
     implicit val hadoopConf: Configuration = sc.hadoopConfiguration
-    implicit val formats: AnyRef with Formats = Serialization.formats(NoTypeHints)
+    implicit val formats: AnyRef with Formats =
+      Serialization.formats(NoTypeHints) + new TreeSerializer
     LoanUtils.withCloseable(new FileInputStream(inputModel)) { objectIn =>
       Serialization.read(objectIn).asInstanceOf[RandomForestModel]
     }
@@ -79,7 +77,8 @@ trait ModelIOArgs extends SparkArgs with Echoable {
 
   def saveModelJson(rfModel: RandomForestModel, variableIndex: Map[Long, String]) {
     implicit val hadoopConf: Configuration = sc.hadoopConfiguration
-    implicit val formats: AnyRef with Formats = Serialization.formats(NoTypeHints)
+    implicit val formats: AnyRef with Formats =
+      Serialization.formats(NoTypeHints) + new TreeSerializer
     LoanUtils.withCloseable(new OutputStreamWriter(HdfsPath(outputModel).create())) { objectOut =>
       writePretty(new ModelConverter(variableIndex).toExternal(rfModel), objectOut)
     }

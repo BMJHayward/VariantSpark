@@ -9,6 +9,8 @@ import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization.{read, write, writePretty}
 import org.json4s.jackson.Serialization
 import org.json4s.JsonAST.{JObject, JValue}
+import au.csiro.pbdava.ssparkle.common.arg4j.AppRunner
+import au.csiro.variantspark.cli.args.ModelIOArgs
 import au.csiro.variantspark.external._
 import au.csiro.variantspark.algo.{
   DecisionTree,
@@ -34,7 +36,7 @@ import org.apache.spark.SparkConf
 val conf = new SparkConf(!System.getProperty("sparkle.local", "false").toBoolean).setAppName(getClass.getSimpleName)
 if (conf.contains("spark.master")) conf else conf.setMaster("local")
 
-def loadModel(inputModel: String, inputModelFormat: String) = inputModelFormat match {
+def loadModelBroad(inputModel: String, inputModelFormat: String) = inputModelFormat match {
   case "json" => spark.read.json(inputModel).asInstanceOf[RandomForestModel]
   case "ser" | "java" | "bin" | "model" | "spark" => {
     val javaSerializer = new JavaSerializer(conf)
@@ -44,6 +46,14 @@ def loadModel(inputModel: String, inputModelFormat: String) = inputModelFormat m
     }}
   case _ => sc.textFile(inputModel)
 }
+
+class saveloadCmd extends ModelIOArgs {
+}
+
+object saveloadCmd {
+def main(args: Array[String]){
+  print(args)
+}}
 
 //implicit val jsonFormats = DefaultFormats
 implicit val formats = DefaultFormats
